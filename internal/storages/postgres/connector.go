@@ -37,10 +37,10 @@ func (p *PSQL) Start(ctx context.Context, url string, timeout time.Duration, mig
 
 	p.pool = pool
 
-	//err = doMigrate(url, migrationsPath)
-	//if err != nil {
-	//	return fmt.Errorf("%s: %w", op, err)
-	//}
+	err = doMigrate(url, migrationsPath)
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
 	return err
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"gw-currency-wallet/internal/app"
+	in_mem "gw-currency-wallet/internal/cache/in-mem"
 	"gw-currency-wallet/internal/config"
 	"gw-currency-wallet/internal/grpcClient/exchange"
 	"gw-currency-wallet/internal/storages/postgres"
@@ -53,7 +54,10 @@ func main() {
 	}
 	defer exchgr.Stop()
 
-	srv := app.New(ctx, db, exchgr)
+	cache := in_mem.New(ctx, 60*time.Second)
+	defer cache.Close()
+
+	srv := app.New(ctx, db, cache, exchgr, logger)
 
 	webSrv := web.New(cfg.Web.ConnectionURL(), srv)
 
