@@ -14,8 +14,9 @@ func New(ctx context.Context, lifetime time.Duration) *InMem {
 	ctxInMem, _ := context.WithCancel(ctx)
 
 	inMem := InMem{
-		data: sync.Map{},
-		ctx:  ctxInMem,
+		data:       sync.Map{},
+		ctx:        ctxInMem,
+		timerReset: make(chan struct{}),
 	}
 
 	go inMem.runCleaner(lifetime)
@@ -41,6 +42,7 @@ func (i *InMem) GetRates() (exchange.Rates, bool) {
 func (i *InMem) RefreshRates(new exchange.Rates) {
 
 	i.data.Store(recordKey, new)
+	i.timerReset <- struct{}{}
 
 }
 
@@ -53,6 +55,8 @@ func (i *InMem) runCleaner(timeout time.Duration) {
 		select {
 		case <-i.ctx.Done():
 			return
+		case <-i.timerReset:
+			continue
 		case <-time.After(timeout):
 			i.delete(recordKey)
 		}

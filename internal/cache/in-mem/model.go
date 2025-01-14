@@ -6,6 +6,7 @@ import (
 )
 
 type InMem struct {
-	ctx  context.Context
-	data sync.Map
+	ctx        context.Context
+	data       sync.Map
+	timerReset chan struct{}
 }

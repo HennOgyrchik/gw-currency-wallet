@@ -31,3 +31,9 @@ type Cash struct {
 	Amount   float32
 	Currency string
 }
+
+type ExchangeRequest struct {
+	FromCurrency string
+	ToCurrency   string
+	Amount       float32
+}

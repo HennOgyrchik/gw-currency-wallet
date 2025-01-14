@@ -36,7 +36,7 @@ func (a *App) Register(c *gin.Context) {
 	}
 
 	//TODO тут надо отправить на регистрацию и получить id пользователя
-	id := "MEGA_USER"
+	id := user.Username
 
 	//if err != nil {
 	//	a.logger.Err(op, err)
@@ -116,19 +116,19 @@ func (a *App) DepositWithdrawHandler(c *gin.Context, multiplier float32) {
 		return
 	}
 
-	var cash Cash
+	var request Cash
 
-	if err = c.BindJSON(&cash); err != nil {
+	if err = c.BindJSON(&request); err != nil {
 		sendError(c, http.StatusBadRequest, "Invalid amount or currency")
 		return
 	}
 
-	if cash.Amount < 0 {
+	if request.Amount < 0 {
 		sendError(c, http.StatusBadRequest, "the amount is less than 0")
 		return
 	}
 
-	cash.Currency = strings.ToUpper(cash.Currency)
+	request.Currency = strings.ToUpper(request.Currency)
 
 	balance, err := a.storage.GetBalance(a.ctx, user)
 	if err != nil {
@@ -137,17 +137,7 @@ func (a *App) DepositWithdrawHandler(c *gin.Context, multiplier float32) {
 		return
 	}
 
-	switch cash.Currency {
-	case "USD":
-		balance.USD, err = adder(balance.USD, cash.Amount, multiplier)
-	case "RUB":
-		balance.RUB, err = adder(balance.RUB, cash.Amount, multiplier)
-	case "EUR":
-		balance.EUR, err = adder(balance.EUR, cash.Amount, multiplier)
-	default:
-		sendError(c, http.StatusBadRequest, "unknown currency")
-		return
-	}
+	_, err = changeBalance(request.Currency, &balance, request.Amount, multiplier)
 	if err != nil {
 		sendError(c, http.StatusBadRequest, err.Error())
 		return
@@ -174,7 +164,7 @@ func (a *App) Rates(c *gin.Context) {
 		return
 	}
 
-	res, err := a.exchanger.GetExchangeRates(context.Background())
+	res, err := a.exchanger.GetExchangeRates(a.ctx)
 	if err != nil {
 		a.logger.Err(op, err)
 		sendError(c, http.StatusInternalServerError, "Failed to retrieve exchange rates")
@@ -185,8 +175,81 @@ func (a *App) Rates(c *gin.Context) {
 }
 
 func (a *App) Exchange(c *gin.Context) {
-	// Брать из кэша
-	fmt.Println("Implement Exchange")
+	const op = "App Exchange"
+
+	user, err := authorization(c, a.logger)
+	if err != nil {
+		return
+	}
+
+	var request ExchangeRequest
+
+	if err = c.BindJSON(&request); err != nil {
+		sendError(c, http.StatusBadRequest, "invalid request")
+		return
+	}
+
+	if request.Amount < 0 {
+		sendError(c, http.StatusBadRequest, "the amount is less than 0")
+		return
+	}
+
+	request.FromCurrency, request.ToCurrency = strings.ToUpper(request.FromCurrency), strings.ToUpper(request.ToCurrency)
+
+	balance, err := a.storage.GetBalance(a.ctx, user)
+	if err != nil {
+		a.logger.Err(op, err)
+		sendError(c, http.StatusInternalServerError, "Failed to get user balance")
+		return
+	}
+
+	rates, ok := a.cache.GetRates()
+	if !ok {
+		rates, err = a.exchanger.GetExchangeRates(a.ctx)
+		if err != nil {
+			a.logger.Err(op, err)
+			sendError(c, http.StatusInternalServerError, "Failed to retrieve exchange rates")
+			return
+		}
+		a.cache.RefreshRates(rates)
+	}
+
+	fromCurrencyRate, ok := rates.Rates[request.FromCurrency]
+	if !ok {
+		sendError(c, http.StatusBadRequest, "Insufficient funds or invalid currencies")
+		return
+	}
+
+	toCurrencyRate, ok := rates.Rates[request.ToCurrency]
+	if !ok {
+		sendError(c, http.StatusBadRequest, "Insufficient funds or invalid currencies")
+		return
+	}
+
+	_, err = changeBalance(request.FromCurrency, &balance, request.Amount, -1)
+	if err != nil {
+		sendError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	exchangeAmount, err := changeBalance(request.ToCurrency, &balance, request.Amount, fromCurrencyRate/toCurrencyRate)
+	if err != nil {
+		sendError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if err = a.storage.UpdateWallet(a.ctx, user, balance); err != nil {
+		a.logger.Err(op, err)
+		sendError(c, http.StatusInternalServerError, "Failed update balance")
+		return
+	}
+
+	c.JSON(http.StatusOK, struct {
+		Message         string
+		ExchangedAmount float32
+		NewBalance      storages.Balance
+	}{"Exchange successful", exchangeAmount, balance})
+
 }
 
 func sendError(c *gin.Context, code int, message string) {
@@ -259,10 +322,33 @@ func authorization(c *gin.Context, logger *logs.Log) (string, error) {
 }
 
 func adder(before, amount, multiplier float32) (float32, error) {
-
-	if multiplier == -1 && before < amount {
+	if multiplier < 0 && before < amount*(-multiplier) {
 		return 0, fmt.Errorf("insufficient funds or invalid amount")
 	}
 
-	return before + (amount * multiplier), nil
+	return amount * multiplier, nil
+}
+
+func changeBalance(currency string, wallet *storages.Balance, amount, multiplier float32) (float32, error) {
+	var (
+		change float32
+		err    error
+	)
+
+	switch currency {
+	case "USD":
+		change, err = adder(wallet.USD, amount, multiplier)
+		wallet.USD += change
+
+	case "RUB":
+		change, err = adder(wallet.RUB, amount, multiplier)
+		wallet.RUB += change
+	case "EUR":
+		change, err = adder(wallet.EUR, amount, multiplier)
+		wallet.EUR += change
+
+	default:
+		err = fmt.Errorf("unknown currency")
+	}
+	return change, err
 }
