@@ -22,14 +22,12 @@ func (e *Exchange) GetExchangeRates(ctx context.Context) (Rates, error) {
 func (e *Exchange) GetExchangeRateForCurrency(ctx context.Context, in Currency) (Rate, error) {
 	const op = "gRPC Exchange GetExchangeRateForCurrency"
 
-	var result Rate
-
 	rate, err := e.client.GetExchangeRateForCurrency(ctx, &pb.CurrencyRequest{
 		FromCurrency: in.FromCurrency,
 		ToCurrency:   in.ToCurrency,
 	})
 	if err != nil {
-		return result, fmt.Errorf("%s: %w", op, err)
+		err = fmt.Errorf("%s: %w", op, err)
 	}
 
 	return Rate{

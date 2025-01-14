@@ -4,6 +4,7 @@ go 1.23.2
 
 require (
 	github.com/HennOgyrchik/proto-exchange v0.0.0-20250109083435-14e1506cf548
+	github.com/HennOgyrchik/proto-jwt-auth v0.0.2
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang-migrate/migrate/v4 v4.18.1

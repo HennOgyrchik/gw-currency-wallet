@@ -3,6 +3,8 @@ github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161/go.mod h1:xomTg6
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/HennOgyrchik/proto-exchange v0.0.0-20250109083435-14e1506cf548 h1:bj+zhCAymVsCF5ES7VWCxJqMLIIMgiroAscVfEYrtV4=
 github.com/HennOgyrchik/proto-exchange v0.0.0-20250109083435-14e1506cf548/go.mod h1:DzjxMvm5QjJLyOzRqvnGeXuY5VUx2HwuHQnHK+Yh22Y=
+github.com/HennOgyrchik/proto-jwt-auth v0.0.2 h1:gCBvksTUTuEKK2DPHdmimk+rim9irBLTp+Dtix8D0yo=
+github.com/HennOgyrchik/proto-jwt-auth v0.0.2/go.mod h1:KG3Fg2anGpylGnaTrnR0LR9yVTKxEnBQ5gJDozvTIMU=
 github.com/Masterminds/semver/v3 v3.1.1/go.mod h1:VPu/7SZ7ePZ3QOrcuXROw5FAcLl4a0cBrbBpGY/8hQs=
 github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERoyfY=
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=

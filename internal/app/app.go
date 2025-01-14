@@ -2,10 +2,12 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
 	"gw-currency-wallet/internal/cache"
+	"gw-currency-wallet/internal/grpcClient/auth"
 	"gw-currency-wallet/internal/grpcClient/exchange"
 	"gw-currency-wallet/internal/storages"
 	"gw-currency-wallet/pkg/logs"
@@ -16,36 +18,44 @@ import (
 
 const patternToken = "[a-zA-Z0-9-_]+\\.[a-zA-Z0-9-_]+\\.[a-zA-Z0-9-_]+"
 
-func New(ctx context.Context, storage storages.Storage, cache cache.Cache, exchanger exchange.Exchanger, logger *logs.Log) *App {
+func New(ctx context.Context, storage storages.Storage, cache cache.Cache, exchanger exchange.Exchanger, authorizer auth.Authorizer, logger *logs.Log) *App {
 	return &App{ctx: ctx,
-		storage:   storage,
-		cache:     cache,
-		exchanger: exchanger,
-		logger:    logger,
+		storage:    storage,
+		cache:      cache,
+		exchanger:  exchanger,
+		authorizer: authorizer,
+		logger:     logger,
 	}
 }
 
 func (a *App) Register(c *gin.Context) {
 	const op = "App Register"
 
-	var user User
+	var userRequest User
 
-	if err := c.BindJSON(&user); err != nil {
+	if err := c.BindJSON(&userRequest); err != nil {
 		sendError(c, http.StatusBadRequest, "invalid request")
 		return
 	}
 
-	//TODO тут надо отправить на регистрацию и получить id пользователя
-	id := user.Username
+	userResponse, err := a.authorizer.CreateUser(a.ctx, auth.CreateUserRequest{
+		Username: userRequest.Username,
+		Password: userRequest.Password,
+		Email:    userRequest.Email,
+	})
 
-	//if err != nil {
-	//	a.logger.Err(op, err)
-	//	sendError(c, http.StatusInternalServerError, "Failed registration")
-	//	return
-	//}
-	///////////////////
+	switch {
+	case errors.Is(err, fmt.Errorf("already exists")):
+		sendError(c, http.StatusBadRequest, "Username or email already exists")
+		return
+	case err != nil:
+		a.logger.Err(op, err)
+		sendError(c, http.StatusInternalServerError, "Failed registration")
+		return
 
-	if err := a.storage.NewWallet(a.ctx, id); err != nil {
+	}
+
+	if err := a.storage.NewWallet(a.ctx, userResponse.UserId); err != nil {
 		a.logger.Err(op, err)
 		sendError(c, http.StatusInternalServerError, "Failed create new wallet")
 		return
@@ -66,26 +76,31 @@ func (a *App) Login(c *gin.Context) {
 		return
 	}
 
-	//TODO тут надо отправить креды и получить токен
-	token := "Тут будет ваш токен"
-	//
-	//	• Ошибка: ```401 Unauthorized```
-	//	```json
-	//{
-	//  "error": "Invalid username or password"
-	//}
-	/////
+	token, err := a.authorizer.Login(a.ctx, auth.LoginCredentials{
+		Username: credentials.Username,
+		Password: credentials.Password,
+	})
+	switch {
+	case errors.Is(err, fmt.Errorf("invalid credentials")):
+		sendError(c, http.StatusBadRequest, "Invalid username or password")
+		return
+	case err != nil:
+		a.logger.Err(op, err)
+		sendError(c, http.StatusInternalServerError, "Failed login")
+		return
+
+	}
 
 	c.JSON(http.StatusOK, struct {
 		Token string
-	}{token})
+	}{token.Value})
 
 }
 
 func (a *App) Balance(c *gin.Context) {
 	const op = "App Balance"
 
-	user, err := authorization(c, a.logger)
+	user, err := a.authorization(c)
 	if err != nil {
 		return
 	}
@@ -111,7 +126,7 @@ func (a *App) Withdraw(c *gin.Context) {
 func (a *App) DepositWithdrawHandler(c *gin.Context, multiplier float32) {
 	const op = "App Deposit"
 
-	user, err := authorization(c, a.logger)
+	user, err := a.authorization(c)
 	if err != nil {
 		return
 	}
@@ -159,7 +174,7 @@ func (a *App) DepositWithdrawHandler(c *gin.Context, multiplier float32) {
 func (a *App) Rates(c *gin.Context) {
 	const op = "App Rates"
 
-	_, err := authorization(c, a.logger)
+	_, err := a.authorization(c)
 	if err != nil {
 		return
 	}
@@ -177,7 +192,7 @@ func (a *App) Rates(c *gin.Context) {
 func (a *App) Exchange(c *gin.Context) {
 	const op = "App Exchange"
 
-	user, err := authorization(c, a.logger)
+	user, err := a.authorization(c)
 	if err != nil {
 		return
 	}
@@ -258,12 +273,11 @@ func sendError(c *gin.Context, code int, message string) {
 	}{message})
 }
 
-func verifyToken(token string) (bool, error) {
-	const op = "App verifyToken"
+func (a *App) verifyToken(token string) (bool, error) {
 
-	//TODO !!!!!
-	fmt.Println("implement verifyToken")
-	return true, nil
+	response, err := a.authorizer.VerifyToken(a.ctx, auth.Token{Value: token})
+
+	return response.Ok, err
 }
 
 func getTokenFromString(raw string) (string, error) {
@@ -277,7 +291,7 @@ func getTokenFromString(raw string) (string, error) {
 	return r.FindStringSubmatch(raw)[0], nil
 }
 
-func authorization(c *gin.Context, logger *logs.Log) (string, error) {
+func (a *App) authorization(c *gin.Context) (string, error) {
 	const op = "App authorization"
 
 	authStr := c.GetHeader("Authorization")
@@ -289,14 +303,14 @@ func authorization(c *gin.Context, logger *logs.Log) (string, error) {
 
 	token, err := getTokenFromString(authStr)
 	if err != nil {
-		logger.Err(op, err)
+		a.logger.Err(op, err)
 		sendError(c, http.StatusInternalServerError, "Failed token processing")
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
 
-	ok, err := verifyToken(token)
+	ok, err := a.verifyToken(token)
 	if err != nil {
-		logger.Err(op, err)
+		a.logger.Err(op, err)
 		sendError(c, http.StatusInternalServerError, "Failed to verify token")
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
@@ -307,7 +321,7 @@ func authorization(c *gin.Context, logger *logs.Log) (string, error) {
 
 	t, _, err := new(jwt.Parser).ParseUnverified(token, jwt.MapClaims{})
 	if err != nil {
-		logger.Err(op, err)
+		a.logger.Err(op, err)
 		sendError(c, http.StatusInternalServerError, "Failed to parse token")
 		return "", fmt.Errorf("%s: %w", op, err)
 	}

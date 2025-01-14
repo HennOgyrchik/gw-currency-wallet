@@ -6,6 +6,7 @@ import (
 	"gw-currency-wallet/internal/app"
 	in_mem "gw-currency-wallet/internal/cache/in-mem"
 	"gw-currency-wallet/internal/config"
+	"gw-currency-wallet/internal/grpcClient/auth"
 	"gw-currency-wallet/internal/grpcClient/exchange"
 	"gw-currency-wallet/internal/storages/postgres"
 	"gw-currency-wallet/internal/web"
@@ -47,17 +48,24 @@ func main() {
 	}
 	defer db.Stop()
 
-	exchgr := exchange.New(cfg.Exchanger.ConnectionURL())
-	if err = exchgr.Run(); err != nil {
+	exchger := exchange.New(cfg.Exchanger.ConnectionURL())
+	if err = exchger.Run(); err != nil {
 		logger.Err("connection exchange", err)
 		return
 	}
-	defer exchgr.Stop()
+	defer exchger.Stop()
+
+	authorizer := auth.New(cfg.Auth.ConnectionURL())
+	if err = authorizer.Run(); err != nil {
+		logger.Err("connection authorizer", err)
+		return
+	}
+	defer exchger.Stop()
 
 	cache := in_mem.New(ctx, 60*time.Second)
 	defer cache.Close()
 
-	srv := app.New(ctx, db, cache, exchgr, logger)
+	srv := app.New(ctx, db, cache, exchger, authorizer, logger)
 
 	webSrv := web.New(cfg.Web.ConnectionURL(), srv)
 

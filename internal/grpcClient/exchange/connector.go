@@ -16,9 +16,6 @@ func New(grpcServerURL string) *Exchange {
 }
 
 func (e *Exchange) Run() error {
-
-	fmt.Println("123123123")
-
 	const op = "gRPC Exchange New"
 
 	conn, err := grpc.NewClient(e.url, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -28,8 +25,6 @@ func (e *Exchange) Run() error {
 
 	e.conn = conn
 	e.client = pb.NewExchangeServiceClient(conn)
-
-	fmt.Println("CLIENT = ", e.client, "FUNC = ", pb.NewExchangeServiceClient(conn))
 
 	return nil
 }
