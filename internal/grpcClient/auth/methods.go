@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	pb "github.com/HennOgyrchik/proto-jwt-auth/auth"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func (a *Auth) CreateUser(ctx context.Context, user CreateUserRequest) (CreateUserResponse, error) {
@@ -15,34 +17,48 @@ func (a *Auth) CreateUser(ctx context.Context, user CreateUserRequest) (CreateUs
 		Email:    user.Email,
 	})
 
-	if err != nil {
-		err = fmt.Errorf("%s: %w", op, err)
+	switch {
+	case status.Code(err) == codes.AlreadyExists:
+		return CreateUserResponse{}, UserAlreadyExistsErr
+	case err != nil:
+		return CreateUserResponse{}, fmt.Errorf(op, err)
+	default:
+		return CreateUserResponse{UserId: response.UserId}, nil
 	}
 
-	return CreateUserResponse{UserId: response.UserId}, err
 }
 
-func (a *Auth) Login(ctx context.Context, credentials LoginCredentials) (Token, error) {
+func (a *Auth) Login(ctx context.Context, credentials LoginCredentials) (TokenResponse, error) {
 	const op = "gRPC Auth Login"
 
 	token, err := a.client.Login(ctx, &pb.LoginRequest{
 		Username: credentials.Username,
 		Password: credentials.Password,
 	})
-	if err != nil {
-		err = fmt.Errorf("%s: %w", op, err)
+
+	switch {
+	case status.Code(err) == codes.InvalidArgument:
+		return TokenResponse{}, InvalidCredentialsErr
+	case err != nil:
+		return TokenResponse{}, fmt.Errorf(op, err)
+	default:
+		return TokenResponse{Value: token.Value}, nil
 	}
 
-	return Token{Value: token.Value}, err
 }
 
-func (a *Auth) VerifyToken(ctx context.Context, token Token) (VerifyTokenResponse, error) {
+func (a *Auth) VerifyToken(ctx context.Context, request TokenRequest) (VerifyTokenResponse, error) {
 	const op = "gRPC Auth VerifyToken"
 
-	verifyToken, err := a.client.VerifyToken(ctx, &pb.Token{Value: token.Value})
-	if err != nil {
-		err = fmt.Errorf("%s: %w", op, err)
+	verifyResponse, err := a.client.VerifyToken(ctx, &pb.TokenReuest{UserId: request.UserId, Token: request.Token})
+
+	switch {
+	case status.Code(err) == codes.InvalidArgument:
+		return VerifyTokenResponse{}, InvalidCredentialsErr
+	case err != nil:
+		return VerifyTokenResponse{}, fmt.Errorf(op, err)
+	default:
+		return VerifyTokenResponse{Ok: verifyResponse.Ok}, nil
 	}
 
-	return VerifyTokenResponse{Ok: verifyToken.Ok}, err
 }

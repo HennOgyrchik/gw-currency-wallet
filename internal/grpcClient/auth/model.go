@@ -2,15 +2,19 @@ package auth
 
 import (
 	"context"
+	"fmt"
 	pb "github.com/HennOgyrchik/proto-jwt-auth/auth"
 	"google.golang.org/grpc"
 )
 
 type Authorizer interface {
 	CreateUser(ctx context.Context, user CreateUserRequest) (CreateUserResponse, error)
-	Login(ctx context.Context, credentials LoginCredentials) (Token, error)
-	VerifyToken(ctx context.Context, token Token) (VerifyTokenResponse, error)
+	Login(ctx context.Context, credentials LoginCredentials) (TokenResponse, error)
+	VerifyToken(ctx context.Context, token TokenRequest) (VerifyTokenResponse, error)
 }
+
+var UserAlreadyExistsErr = fmt.Errorf("already exists")
+var InvalidCredentialsErr = fmt.Errorf("invalid credentials")
 
 type Auth struct {
 	url    string
@@ -33,8 +37,13 @@ type LoginCredentials struct {
 	Password string
 }
 
-type Token struct {
+type TokenResponse struct {
 	Value string
+}
+
+type TokenRequest struct {
+	UserId string
+	Token  string
 }
 
 type VerifyTokenResponse struct {

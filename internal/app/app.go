@@ -45,7 +45,7 @@ func (a *App) Register(c *gin.Context) {
 	})
 
 	switch {
-	case errors.Is(err, fmt.Errorf("already exists")):
+	case errors.Is(err, auth.UserAlreadyExistsErr):
 		sendError(c, http.StatusBadRequest, "Username or email already exists")
 		return
 	case err != nil:
@@ -81,7 +81,7 @@ func (a *App) Login(c *gin.Context) {
 		Password: credentials.Password,
 	})
 	switch {
-	case errors.Is(err, fmt.Errorf("invalid credentials")):
+	case errors.Is(err, auth.InvalidCredentialsErr):
 		sendError(c, http.StatusBadRequest, "Invalid username or password")
 		return
 	case err != nil:
@@ -273,9 +273,9 @@ func sendError(c *gin.Context, code int, message string) {
 	}{message})
 }
 
-func (a *App) verifyToken(token string) (bool, error) {
+func (a *App) verifyToken(userId, token string) (bool, error) {
 
-	response, err := a.authorizer.VerifyToken(a.ctx, auth.Token{Value: token})
+	response, err := a.authorizer.VerifyToken(a.ctx, auth.TokenRequest{UserId: userId, Token: token})
 
 	return response.Ok, err
 }
@@ -295,7 +295,7 @@ func (a *App) authorization(c *gin.Context) (string, error) {
 	const op = "App authorization"
 
 	authStr := c.GetHeader("Authorization")
-	fmt.Println(authStr)
+
 	if authStr == "" {
 		sendError(c, http.StatusUnauthorized, "Access deny")
 		return "", fmt.Errorf("%s: %s", op, "Access deny")
@@ -308,31 +308,42 @@ func (a *App) authorization(c *gin.Context) (string, error) {
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
 
-	ok, err := a.verifyToken(token)
-	if err != nil {
-		a.logger.Err(op, err)
-		sendError(c, http.StatusInternalServerError, "Failed to verify token")
-		return "", fmt.Errorf("%s: %w", op, err)
-	}
-	if !ok {
-		sendError(c, http.StatusUnauthorized, "Access deny")
-		return "", fmt.Errorf("%s: %s", op, "Access deny")
-	}
-
-	t, _, err := new(jwt.Parser).ParseUnverified(token, jwt.MapClaims{})
+	jwtParser, _, err := new(jwt.Parser).ParseUnverified(token, jwt.MapClaims{})
 	if err != nil {
 		a.logger.Err(op, err)
 		sendError(c, http.StatusInternalServerError, "Failed to parse token")
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
 
-	claims, ok := t.Claims.(jwt.MapClaims)
+	claims, ok := jwtParser.Claims.(jwt.MapClaims)
 	if !ok {
 		sendError(c, http.StatusBadRequest, "payload is absent")
 		return "", fmt.Errorf("payload is absent")
 	}
 
-	return fmt.Sprint(claims["user"]), nil
+	userId := fmt.Sprint(claims["id"])
+	if userId == "" {
+		sendError(c, http.StatusBadRequest, "invalid token")
+		return "", fmt.Errorf("invalid token")
+	}
+
+	ok, err = a.verifyToken(userId, token)
+
+	switch {
+	case errors.Is(err, auth.InvalidCredentialsErr):
+		sendError(c, http.StatusBadRequest, "Invalid token")
+		return "", fmt.Errorf("%s: %s", op, "Invalid token")
+	case err != nil:
+		a.logger.Err(op, err)
+		sendError(c, http.StatusInternalServerError, "Failed to verify token")
+		return "", fmt.Errorf("%s: %w", op, err)
+	case !ok:
+		sendError(c, http.StatusUnauthorized, "Access deny")
+		return "", fmt.Errorf("%s: %s", op, "Access deny")
+	default:
+		return userId, nil
+	}
+
 }
 
 func adder(before, amount, multiplier float32) (float32, error) {

@@ -98,12 +98,12 @@ func New() Config {
 			Port: getEnvAsInt("WEB_PORT", 80),
 		},
 		Exchanger: GRPCConfig{
-			Host: getEnvAsString("GRPC_HOST", "localhost"),
-			Port: getEnvAsInt("GRPC_PORT", 9090),
+			Host: getEnvAsString("EXCHANGER_HOST", "localhost"),
+			Port: getEnvAsInt("EXCHANGER_PORT", 9090),
 		},
 		Auth: GRPCConfig{
-			Host: getEnvAsString("GRPC_HOST", "localhost"),
-			Port: getEnvAsInt("GRPC_PORT", 9090),
+			Host: getEnvAsString("AUTHORIZER_HOST", "localhost"),
+			Port: getEnvAsInt("AUTHORIZER_PORT", 9090),
 		}}
 
 }
