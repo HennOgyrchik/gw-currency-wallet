@@ -84,6 +84,7 @@ func (a *App) Register(c *gin.Context) {
 // @Param input body Credentials true "user credentials"
 // @Success 200 {object} TokenResponseJSON
 // @Failure 400 {object} ErrResponseJSON
+// @Failure 401 {object} ErrResponseJSON
 // @Failure 500 {object} ErrResponseJSON
 // @Router /api/v1/login [post]
 func (a *App) Login(c *gin.Context) {
@@ -102,7 +103,7 @@ func (a *App) Login(c *gin.Context) {
 	})
 	switch {
 	case errors.Is(err, auth.InvalidCredentialsErr):
-		sendError(c, http.StatusBadRequest, "Invalid username or password")
+		sendError(c, http.StatusUnauthorized, "Invalid username or password")
 		return
 	case err != nil:
 		a.logger.Err(op, err)

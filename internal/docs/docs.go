@@ -152,6 +152,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/app.ErrResponseJSON"
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/app.ErrResponseJSON"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
