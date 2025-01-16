@@ -1,12 +1,11 @@
 package in_mem
 
 import (
-	"context"
 	"sync"
+	"time"
 )
 
 type InMem struct {
-	ctx        context.Context
-	data       sync.Map
-	timerReset chan struct{}
+	data     sync.Map
+	lifetime time.Duration
 }

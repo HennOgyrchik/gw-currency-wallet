@@ -28,6 +28,17 @@ func New(ctx context.Context, storage storages.Storage, cache cache.Cache, excha
 	}
 }
 
+// @Summary Registration
+// @Tags Auth
+// @Descriotion create account
+// @ID register-account
+// @Accept json
+// @Produce json
+// @Param input body User true "user info"
+// @Success 201 {object} MessageResponseJSON
+// @Failure 400 {object} ErrResponseJSON
+// @Failure 500 {object} ErrResponseJSON
+// @Router /api/v1/register [post]
 func (a *App) Register(c *gin.Context) {
 	const op = "App Register"
 
@@ -61,11 +72,20 @@ func (a *App) Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, struct {
-		Message string
-	}{Message: "User registered successfully"})
+	c.JSON(http.StatusCreated, MessageResponseJSON{"User registered successfully"})
 }
 
+// @Summary Login
+// @Tags Auth
+// @Descriotion login account
+// @ID login-account
+// @Accept json
+// @Produce json
+// @Param input body Credentials true "user credentials"
+// @Success 200 {object} TokenResponseJSON
+// @Failure 400 {object} ErrResponseJSON
+// @Failure 500 {object} ErrResponseJSON
+// @Router /api/v1/login [post]
 func (a *App) Login(c *gin.Context) {
 	const op = "App Login"
 
@@ -91,12 +111,21 @@ func (a *App) Login(c *gin.Context) {
 
 	}
 
-	c.JSON(http.StatusOK, struct {
-		Token string
-	}{token.Value})
+	c.JSON(http.StatusOK, TokenResponseJSON{token.Value})
 
 }
 
+// @Summary Balance
+// @Security ApiKeyAuth
+// @Tags Wallet
+// @Descriotion user balance
+// @ID user-balance
+// @Produce json
+// @Success 200 {object} storages.Balance
+// @Failure 400 {object} ErrResponseJSON
+// @Failure 401 {object} ErrResponseJSON
+// @Failure 500 {object} ErrResponseJSON
+// @Router /api/v1/wallet/balance [get]
 func (a *App) Balance(c *gin.Context) {
 	const op = "App Balance"
 
@@ -115,10 +144,36 @@ func (a *App) Balance(c *gin.Context) {
 	c.JSON(http.StatusOK, balance)
 }
 
+// @Summary Deposit
+// @Security ApiKeyAuth
+// @Tags Wallet
+// @Descriotion deposit wallet
+// @ID deposit-wallet
+// @Accept json
+// @Produce json
+// @Param input body Cash true "desired currency and amount"
+// @Success 200 {object} NewBalanceResponseJSON
+// @Failure 400 {object} ErrResponseJSON
+// @Failure 401 {object} ErrResponseJSON
+// @Failure 500 {object} ErrResponseJSON
+// @Router /api/v1/wallet/deposit [post]
 func (a *App) Deposit(c *gin.Context) {
 	a.DepositWithdrawHandler(c, 1)
 }
 
+// @Summary Withdraw
+// @Security ApiKeyAuth
+// @Tags Wallet
+// @Descriotion withdraw wallet
+// @ID withdraw-wallet
+// @Accept json
+// @Produce json
+// @Param input body Cash true "desired currency and amount"
+// @Success 200 {object} NewBalanceResponseJSON
+// @Failure 400 {object} ErrResponseJSON
+// @Failure 401 {object} ErrResponseJSON
+// @Failure 500 {object} ErrResponseJSON
+// @Router /api/v1/wallet/withdraw [post]
 func (a *App) Withdraw(c *gin.Context) {
 	a.DepositWithdrawHandler(c, -1)
 }
@@ -164,13 +219,23 @@ func (a *App) DepositWithdrawHandler(c *gin.Context, multiplier float32) {
 		return
 	}
 
-	c.JSON(http.StatusOK, struct {
-		Message    string
-		NewBalance storages.Balance
-	}{"successful", balance})
-
+	c.JSON(http.StatusOK, NewBalanceResponseJSON{
+		Message:    "successful",
+		NewBalance: balance,
+	})
 }
 
+// @Summary Rates
+// @Security ApiKeyAuth
+// @Tags Exchange
+// @Descriotion rates exchange
+// @ID rates-exchange
+// @Produce json
+// @Success 200 {object} exchange.Rates
+// @Failure 400 {object} ErrResponseJSON
+// @Failure 401 {object} ErrResponseJSON
+// @Failure 500 {object} ErrResponseJSON
+// @Router /api/v1/exchange/rates [get]
 func (a *App) Rates(c *gin.Context) {
 	const op = "App Rates"
 
@@ -189,6 +254,19 @@ func (a *App) Rates(c *gin.Context) {
 	c.JSONP(http.StatusOK, res)
 }
 
+// @Summary Exchange
+// @Security ApiKeyAuth
+// @Tags Exchange
+// @Descriotion exchange currency
+// @ID exchange-wallet
+// @Accept json
+// @Produce json
+// @Param input body ExchangeRequest true "desired currency and amount"
+// @Success 200 {object} ExchangeResponseJSON
+// @Failure 400 {object} ErrResponseJSON
+// @Failure 401 {object} ErrResponseJSON
+// @Failure 500 {object} ErrResponseJSON
+// @Router /api/v1/exchange [post]
 func (a *App) Exchange(c *gin.Context) {
 	const op = "App Exchange"
 
@@ -218,7 +296,9 @@ func (a *App) Exchange(c *gin.Context) {
 		return
 	}
 
-	rates, ok := a.cache.GetRates()
+	var rates exchange.Rates
+
+	valueFromCache, ok := a.cache.Get("rates")
 	if !ok {
 		rates, err = a.exchanger.GetExchangeRates(a.ctx)
 		if err != nil {
@@ -226,7 +306,9 @@ func (a *App) Exchange(c *gin.Context) {
 			sendError(c, http.StatusInternalServerError, "Failed to retrieve exchange rates")
 			return
 		}
-		a.cache.RefreshRates(rates)
+		a.cache.Set("rates", rates)
+	} else {
+		rates = valueFromCache.(exchange.Rates)
 	}
 
 	fromCurrencyRate, ok := rates.Rates[request.FromCurrency]
@@ -259,18 +341,16 @@ func (a *App) Exchange(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, struct {
-		Message         string
-		ExchangedAmount float32
-		NewBalance      storages.Balance
-	}{"Exchange successful", exchangeAmount, balance})
+	c.JSON(http.StatusOK, ExchangeResponseJSON{
+		Message:        "Exchange successful",
+		ExchangeAmount: exchangeAmount,
+		NewBalance:     balance,
+	})
 
 }
 
 func sendError(c *gin.Context, code int, message string) {
-	c.JSONP(code, struct {
-		Error string
-	}{message})
+	c.JSON(code, ErrResponseJSON{message})
 }
 
 func (a *App) verifyToken(userId, token string) (bool, error) {
@@ -288,7 +368,12 @@ func getTokenFromString(raw string) (string, error) {
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
 
-	return r.FindStringSubmatch(raw)[0], nil
+	result := r.FindStringSubmatch(raw)
+	if len(result) < 1 {
+		return "", fmt.Errorf("%s: %s", op, "invalid token")
+	}
+
+	return result[0], nil
 }
 
 func (a *App) authorization(c *gin.Context) (string, error) {

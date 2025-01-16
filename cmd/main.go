@@ -17,6 +17,14 @@ import (
 	"time"
 )
 
+// @title Wallets API
+// @version 1.0
+// @description API Server for Wallets Application
+
+// @securityDefinitions.apikey  ApiKeyAuth
+// @in header
+// @name Authorization
+
 func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
@@ -62,8 +70,7 @@ func main() {
 	}
 	defer exchger.Stop()
 
-	cache := in_mem.New(ctx, 60*time.Second)
-	defer cache.Close()
+	cache := in_mem.New(60 * time.Second)
 
 	srv := app.New(ctx, db, cache, exchger, authorizer, logger)
 

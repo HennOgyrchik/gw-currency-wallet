@@ -19,23 +19,46 @@ type App struct {
 }
 
 type User struct {
-	Username string
-	Password string
-	Email    string
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Email    string `json:"email"`
 }
 
 type Credentials struct {
-	Username string
-	Password string
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 type Cash struct {
-	Amount   float32
-	Currency string
+	Amount   float32 `json:"amount"`
+	Currency string  `json:"currency"`
 }
 
 type ExchangeRequest struct {
-	FromCurrency string
-	ToCurrency   string
-	Amount       float32
+	FromCurrency string  `json:"from_currency"`
+	ToCurrency   string  `json:"to_currency"`
+	Amount       float32 `json:"amount"`
+}
+
+type ErrResponseJSON struct {
+	Error string `json:"error"`
+}
+
+type MessageResponseJSON struct {
+	Message string `json:"message"`
+}
+
+type TokenResponseJSON struct {
+	Token string `json:"token"`
+}
+
+type NewBalanceResponseJSON struct {
+	Message    string           `json:"message"`
+	NewBalance storages.Balance `json:"new_balance"`
+}
+
+type ExchangeResponseJSON struct {
+	Message        string           `json:"message"`
+	ExchangeAmount float32          `json:"exchange_amount"`
+	NewBalance     storages.Balance `json:"new_balance"`
 }

@@ -1,0 +1,314 @@
+definitions:
+  app.Cash:
+    properties:
+      amount:
+        type: number
+      currency:
+        type: string
+    type: object
+  app.Credentials:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  app.ErrResponseJSON:
+    properties:
+      error:
+        type: string
+    type: object
+  app.ExchangeRequest:
+    properties:
+      amount:
+        type: number
+      from_currency:
+        type: string
+      to_currency:
+        type: string
+    type: object
+  app.ExchangeResponseJSON:
+    properties:
+      exchange_amount:
+        type: number
+      message:
+        type: string
+      new_balance:
+        $ref: '#/definitions/storages.Balance'
+    type: object
+  app.MessageResponseJSON:
+    properties:
+      message:
+        type: string
+    type: object
+  app.NewBalanceResponseJSON:
+    properties:
+      message:
+        type: string
+      new_balance:
+        $ref: '#/definitions/storages.Balance'
+    type: object
+  app.TokenResponseJSON:
+    properties:
+      token:
+        type: string
+    type: object
+  app.User:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  exchange.Rates:
+    properties:
+      rates:
+        additionalProperties:
+          type: number
+        type: object
+    type: object
+  storages.Balance:
+    properties:
+      eur:
+        type: number
+      rub:
+        type: number
+      usd:
+        type: number
+    type: object
+info:
+  contact: {}
+  description: API Server for Wallets Application
+  title: Wallets API
+  version: "1.0"
+paths:
+  /api/v1/exchange:
+    post:
+      consumes:
+      - application/json
+      operationId: exchange-wallet
+      parameters:
+      - description: desired currency and amount
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/app.ExchangeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/app.ExchangeResponseJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+      security:
+      - ApiKeyAuth: []
+      summary: Exchange
+      tags:
+      - Exchange
+  /api/v1/exchange/rates:
+    get:
+      operationId: rates-exchange
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/exchange.Rates'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+      security:
+      - ApiKeyAuth: []
+      summary: Rates
+      tags:
+      - Exchange
+  /api/v1/login:
+    post:
+      consumes:
+      - application/json
+      operationId: login-account
+      parameters:
+      - description: user credentials
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/app.Credentials'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/app.TokenResponseJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+      summary: Login
+      tags:
+      - Auth
+  /api/v1/register:
+    post:
+      consumes:
+      - application/json
+      operationId: register-account
+      parameters:
+      - description: user info
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/app.User'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/app.MessageResponseJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+      summary: Registration
+      tags:
+      - Auth
+  /api/v1/wallet/balance:
+    get:
+      operationId: user-balance
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/storages.Balance'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+      security:
+      - ApiKeyAuth: []
+      summary: Balance
+      tags:
+      - Wallet
+  /api/v1/wallet/deposit:
+    post:
+      consumes:
+      - application/json
+      operationId: deposit-wallet
+      parameters:
+      - description: desired currency and amount
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/app.Cash'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/app.NewBalanceResponseJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+      security:
+      - ApiKeyAuth: []
+      summary: Deposit
+      tags:
+      - Wallet
+  /api/v1/wallet/withdraw:
+    post:
+      consumes:
+      - application/json
+      operationId: withdraw-wallet
+      parameters:
+      - description: desired currency and amount
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/app.Cash'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/app.NewBalanceResponseJSON'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/app.ErrResponseJSON'
+      security:
+      - ApiKeyAuth: []
+      summary: Withdraw
+      tags:
+      - Wallet
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
